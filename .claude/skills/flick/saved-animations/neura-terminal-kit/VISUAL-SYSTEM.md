@@ -22,6 +22,12 @@ this run onward.
   so the panel readout and the price axis can never disagree.
 - `CandleChart` — wicks, bodies, gridlines, price ladder, time axis, `progress`
   for progressive printing, `highlight` to spotlight one candle with a glow.
+  - `trade` draws a full entry / stop / target with shaded risk and reward zones.
+  - `openPosition` draws an entry line plus a loss zone that grows with each bar —
+    for showing a position bleeding rather than a planned trade.
+  - Trade levels are folded into the price range, so a stop placed beyond the
+    data can't be clipped at the plot edge. Labels paint after the candles on
+    dark chips, or candle bodies swallow them.
 - `TerminalPanel` — dark glass panel with symbol / timeframe / price / change header.
 - `ImageBackdrop` — full-bleed supplied image under a dark scrim with a slow push-in,
   for captions over supplied trading photography.

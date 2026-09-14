@@ -87,7 +87,8 @@ Read this catalog before building a scene. Reuse an asset only when its visual p
 **Avoid for:** A scene without a captured page, a workflow demonstration, or a page where no single heading needs emphasis.
 
 ## neura-terminal-kit
-**Files:** `neura-terminal-kit/terminal.tsx` (kit) · `theme.ts` · `common.tsx` · `TwoStrategiesScene.tsx` · `ThreeLosingHabitsScene.tsx` · `VISUAL-SYSTEM.md`
+**Files:** `neura-terminal-kit/terminal.tsx` (kit) · `theme.ts` · `common.tsx` · `TwoStrategiesScene.tsx` · `ThreeLosingHabitsScene.tsx` · `MentalTrapsScene.tsx` · `VISUAL-SYSTEM.md`
 **Pattern:** A trading-terminal visual system. Real candlestick charts (bodies, wicks, gridlines, price ladder, time axis) inside dark glass panels with symbol/timeframe/price headers, plus moving-average overlays, entry/stop/target trade annotations with shaded risk-reward zones, duotone image backdrops, film grain and soft glow. Motion is smooth cubic easing throughout — no springs, no bounce.
 **Use for:** Finance and trading short-form video that has to look credible to traders. `buildSwingSeries()` takes swing legs and produces exact market structure (higher highs / higher lows, ranges that hold their boundaries), so charts read as real price action rather than drift plus noise. `seriesStats()` derives panel readouts from the series so the header and the price axis can never disagree.
+**Also covers:** trading-psychology beats. `MentalTrapsScene.tsx` shows two patterns worth reusing — a position bleeding as one unbroken drift with an exit control pulsing untouched (`openPosition` plus a live P&L derived from the series), and a scrolling signal feed where agreeing items stay lit while opposing ones dim and blur past.
 **Avoid for:** Non-financial content, anything needing playful or bouncy motion, or cartoon/illustrative registers — this system is deliberately restrained.

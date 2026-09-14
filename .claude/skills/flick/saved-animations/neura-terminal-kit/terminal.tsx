@@ -153,6 +153,8 @@ export const CandleChart: FC<{
   maLabel?: string;
   /** Horizontal entry marker pinned to a candle's close. */
   entry?: {index: number; label?: string; reveal?: number};
+  /** An open position bleeding: entry line plus a loss zone that tracks price. */
+  openPosition?: {index: number; entry: number};
   /** Full trade: entry, stop under structure, target — with risk/reward zones. */
   trade?: {
     index: number;
@@ -179,6 +181,7 @@ export const CandleChart: FC<{
   entry,
   trend,
   trade,
+  openPosition,
 }) => {
   // Wide enough for 5-figure prices with 2 decimals; too narrow and the SVG
   // viewport clips the last digit.
@@ -191,7 +194,7 @@ export const CandleChart: FC<{
   const lows = candles.map((c) => c.l);
   // Trade levels must be inside the visible range, or a stop placed beyond the
   // data gets clipped at the plot edge.
-  const levels = trade ? [trade.entry, trade.stop, trade.target] : [];
+  const levels = [...(trade ? [trade.entry, trade.stop, trade.target] : []), ...(openPosition ? [openPosition.entry] : [])];
   const max = Math.max(...highs, ...levels);
   const min = Math.min(...lows, ...levels);
   const pad = (max - min) * 0.12;
@@ -326,6 +329,31 @@ export const CandleChart: FC<{
           );
         })()}
 
+      {/* open position: the loss zone grows with every bar that prints */}
+      {openPosition &&
+        shown > openPosition.index &&
+        (() => {
+          const ex = slot * openPosition.index + slot / 2;
+          const eY = y(openPosition.entry);
+          const last = candles[Math.max(0, shown - 1)].c;
+          const lY = y(last);
+          const losing = lY > eY;
+          return (
+            <g>
+              <rect
+                x={ex}
+                y={Math.min(eY, lY)}
+                width={Math.max(0, plotW - ex)}
+                height={Math.abs(lY - eY)}
+                fill={losing ? theme.warnRed : theme.upGreen}
+                opacity={0.17}
+              />
+              <line x1={0} y1={eY} x2={plotW} y2={eY} stroke={theme.textPrimary} strokeWidth={2} strokeDasharray="10 8" opacity={0.55} />
+              <circle cx={ex} cy={eY} r={8} fill={theme.textPrimary} opacity={0.9} />
+            </g>
+          );
+        })()}
+
       {/* full trade: risk/reward zones from the entry bar, lines across the plot */}
       {trade &&
         (() => {
@@ -397,6 +425,19 @@ export const CandleChart: FC<{
               <rect x={lx - 7} y={ly - 20} width={w} height={28} rx={5} fill={theme.bg} opacity={0.8} />
               <text x={lx} y={ly} fill={theme.orange} opacity={0.95} fontFamily={theme.fontFamily} fontSize={19} letterSpacing="0.14em">
                 {maLabel}
+              </text>
+            </g>
+          );
+        })()}
+
+      {openPosition &&
+        (() => {
+          const yy = y(openPosition.entry);
+          return (
+            <g>
+              <rect x={4} y={yy - 34} width={124} height={34} rx={5} fill={theme.bg} opacity={0.82} />
+              <text x={14} y={yy - 12} fill={theme.textPrimary} fontFamily={theme.fontFamily} fontSize={20} fontWeight={600} letterSpacing="0.16em">
+                ENTRY
               </text>
             </g>
           );
