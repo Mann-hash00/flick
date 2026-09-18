@@ -93,7 +93,7 @@ export const seriesStats = (candles: Candle[], decimals = 2) => {
  * holds above the last low, then a push through the last high. Drift-plus-noise
  * can't do this; it just ramps.
  */
-export type Swing = {to: number; bars: number};
+export type Swing = {to: number; bars: number; /** Per-leg volatility multiplier, for visible expansion/contraction. */ vol?: number};
 
 export const buildSwingSeries = (
   swings: Swing[],
@@ -116,14 +116,93 @@ export const buildSwingSeries = (
       const path = legFrom + (leg.to - legFrom) * ((b + 1) / leg.bars);
       // Final bar lands exactly on the swing level, so highs and lows stay
       // where the structure says they are.
-      const c = b === leg.bars - 1 ? leg.to : path + (rand(n) - 0.5) * 1.4 * volatility;
-      const wick = (0.25 + rand(n + 77) * 1.0) * volatility;
+      const v = volatility * (leg.vol ?? 1);
+      const c = b === leg.bars - 1 ? leg.to : path + (rand(n) - 0.5) * 1.4 * v;
+      const wick = (0.25 + rand(n + 77) * 1.0) * v;
       candles.push({o: at(o), c: at(c), h: at(Math.max(o, c) + wick), l: at(Math.min(o, c) - wick)});
       price = c;
       n++;
     }
   }
   return candles;
+};
+
+
+/** Exponential moving average of closes. */
+export const ema = (candles: Candle[], period: number): (number | null)[] => {
+  const k = 2 / (period + 1);
+  const out: (number | null)[] = [];
+  let prev: number | null = null;
+  candles.forEach((c, i) => {
+    if (i < period - 1) {
+      out.push(null);
+      return;
+    }
+    if (prev === null) {
+      let sum = 0;
+      for (let j = 0; j <= i; j++) sum += candles[j].c;
+      prev = sum / (i + 1);
+    } else {
+      prev = c.c * k + prev * (1 - k);
+    }
+    out.push(prev);
+  });
+  return out;
+};
+
+/** Wilder's RSI on closes, 0-100. */
+export const rsi = (candles: Candle[], period = 14): (number | null)[] => {
+  const out: (number | null)[] = [null];
+  let avgGain = 0;
+  let avgLoss = 0;
+  for (let i = 1; i < candles.length; i++) {
+    const diff = candles[i].c - candles[i - 1].c;
+    const gain = Math.max(0, diff);
+    const loss = Math.max(0, -diff);
+    if (i <= period) {
+      avgGain += gain / period;
+      avgLoss += loss / period;
+      out.push(i === period ? 100 - 100 / (1 + avgGain / (avgLoss || 1e-9)) : null);
+    } else {
+      avgGain = (avgGain * (period - 1) + gain) / period;
+      avgLoss = (avgLoss * (period - 1) + loss) / period;
+      out.push(100 - 100 / (1 + avgGain / (avgLoss || 1e-9)));
+    }
+  }
+  return out;
+};
+
+/** Average true range — the volatility measure a stop should be sized from. */
+export const atr = (candles: Candle[], period = 14): (number | null)[] => {
+  const tr = candles.map((c, i) => {
+    if (i === 0) return c.h - c.l;
+    const pc = candles[i - 1].c;
+    return Math.max(c.h - c.l, Math.abs(c.h - pc), Math.abs(c.l - pc));
+  });
+  const out: (number | null)[] = [];
+  let prev: number | null = null;
+  tr.forEach((t, i) => {
+    if (i < period - 1) {
+      out.push(null);
+      return;
+    }
+    if (prev === null) {
+      let sum = 0;
+      for (let j = 0; j <= i; j++) sum += tr[j];
+      prev = sum / (i + 1);
+    } else {
+      prev = (prev * (period - 1) + t) / period;
+    }
+    out.push(prev);
+  });
+  return out;
+};
+
+/** Index of the local peak within [from, to], by high. */
+export const peakIndex = (candles: Candle[], from: number, to: number): number => {
+  let best = from;
+  for (let i = from; i <= Math.min(to, candles.length - 1); i++) if (candles[i].h > candles[best].h) best = i;
+  return best;
 };
 
 /** Simple moving average aligned to the candle array (null until the window fills). */
@@ -151,6 +230,14 @@ export const CandleChart: FC<{
   /** Moving-average overlay, from movingAverage(). */
   ma?: (number | null)[];
   maLabel?: string;
+  /** Any number of indicator lines (EMAs, etc). */
+  lines?: {values: (number | null)[]; colour: string; width?: number; label?: string; dash?: string}[];
+  /** Volatility envelope, e.g. price +/- k*ATR. Fills between the two series. */
+  band?: {upper: (number | null)[]; lower: (number | null)[]; colour?: string; reveal?: number};
+  /** A labelled price marker that can snap to a level. */
+  marker?: {price: number; label: string; colour?: string; reveal?: number};
+  /** Straight guide between two candles' highs, for divergence slopes. */
+  slopes?: {from: number; to: number; fromValue: number; toValue: number; colour: string; reveal?: number}[];
   /** Horizontal entry marker pinned to a candle's close. */
   entry?: {index: number; label?: string; reveal?: number};
   /** An open position bleeding: entry line plus a loss zone that tracks price. */
@@ -182,6 +269,10 @@ export const CandleChart: FC<{
   trend,
   trade,
   openPosition,
+  lines,
+  band,
+  marker,
+  slopes,
 }) => {
   // Wide enough for 5-figure prices with 2 decimals; too narrow and the SVG
   // viewport clips the last digit.
@@ -194,7 +285,13 @@ export const CandleChart: FC<{
   const lows = candles.map((c) => c.l);
   // Trade levels must be inside the visible range, or a stop placed beyond the
   // data gets clipped at the plot edge.
-  const levels = [...(trade ? [trade.entry, trade.stop, trade.target] : []), ...(openPosition ? [openPosition.entry] : [])];
+  const bandVals = band ? [...band.upper, ...band.lower].filter((v): v is number => v !== null) : [];
+  const levels = [
+    ...(trade ? [trade.entry, trade.stop, trade.target] : []),
+    ...(openPosition ? [openPosition.entry] : []),
+    ...(marker ? [marker.price] : []),
+    ...bandVals,
+  ];
   const max = Math.max(...highs, ...levels);
   const min = Math.min(...lows, ...levels);
   const pad = (max - min) * 0.12;
@@ -329,6 +426,32 @@ export const CandleChart: FC<{
           );
         })()}
 
+      {/* volatility envelope */}
+      {band &&
+        (() => {
+          const r = band.reveal ?? 1;
+          if (r <= 0) return null;
+          const upto = Math.min(shown, Math.round(candles.length * r));
+          const pts: string[] = [];
+          const back: string[] = [];
+          for (let i = 0; i < upto; i++) {
+            const u = band.upper[i];
+            const l = band.lower[i];
+            if (u == null || l == null) continue;
+            pts.push(`${slot * i + slot / 2},${y(u)}`);
+            back.unshift(`${slot * i + slot / 2},${y(l)}`);
+          }
+          if (pts.length < 2) return null;
+          const colour = band.colour ?? theme.orange;
+          return (
+            <g>
+              <polygon points={[...pts, ...back].join(' ')} fill={colour} opacity={0.07} />
+              <polyline points={pts.join(' ')} fill="none" stroke={colour} strokeWidth={2} opacity={0.38} />
+              <polyline points={back.join(' ')} fill="none" stroke={colour} strokeWidth={2} opacity={0.38} />
+            </g>
+          );
+        })()}
+
       {/* open position: the loss zone grows with every bar that prints */}
       {openPosition &&
         shown > openPosition.index &&
@@ -410,6 +533,49 @@ export const CandleChart: FC<{
         );
       })}
 
+      {/* indicator lines */}
+      {lines?.map((ln, k) => {
+        const pts = ln.values
+          .map((v, i) => (v === null || i >= shown ? null : `${slot * i + slot / 2},${y(v)}`))
+          .filter(Boolean) as string[];
+        if (pts.length < 2) return null;
+        return (
+          <polyline
+            key={k}
+            points={pts.join(' ')}
+            fill="none"
+            stroke={ln.colour}
+            strokeWidth={ln.width ?? 3}
+            strokeDasharray={ln.dash}
+            strokeLinecap="round"
+            opacity={0.95}
+          />
+        );
+      })}
+
+      {/* divergence slopes */}
+      {slopes?.map((sl, k) => {
+        const r = sl.reveal ?? 1;
+        if (r <= 0) return null;
+        const x1 = slot * sl.from + slot / 2;
+        const x2 = slot * sl.to + slot / 2;
+        const y1 = y(sl.fromValue);
+        const y2 = y(sl.toValue);
+        return (
+          <line
+            key={k}
+            x1={x1}
+            y1={y1}
+            x2={x1 + (x2 - x1) * r}
+            y2={y1 + (y2 - y1) * r}
+            stroke={sl.colour}
+            strokeWidth={4}
+            strokeDasharray="10 7"
+            strokeLinecap="round"
+          />
+        );
+      })}
+
       {/* Labels paint last, on chips, so candles can't swallow them. */}
       {ma &&
         maLabel &&
@@ -425,6 +591,23 @@ export const CandleChart: FC<{
               <rect x={lx - 7} y={ly - 20} width={w} height={28} rx={5} fill={theme.bg} opacity={0.8} />
               <text x={lx} y={ly} fill={theme.orange} opacity={0.95} fontFamily={theme.fontFamily} fontSize={19} letterSpacing="0.14em">
                 {maLabel}
+              </text>
+            </g>
+          );
+        })()}
+
+      {marker &&
+        (marker.reveal ?? 1) > 0 &&
+        (() => {
+          const yy = y(marker.price);
+          const col = marker.colour ?? theme.warnRed;
+          const w = marker.label.length * 20 * 0.82 + 20;
+          return (
+            <g opacity={marker.reveal ?? 1}>
+              <line x1={0} y1={yy} x2={plotW} y2={yy} stroke={col} strokeWidth={3} strokeDasharray="12 8" />
+              <rect x={4} y={yy - 34} width={w} height={34} rx={5} fill={theme.bg} opacity={0.85} />
+              <text x={14} y={yy - 12} fill={col} fontFamily={theme.fontFamily} fontSize={20} fontWeight={600} letterSpacing="0.16em">
+                {marker.label}
               </text>
             </g>
           );
@@ -637,3 +820,78 @@ export const Glow: FC<{x?: string; y?: string; colour?: string; strength?: numbe
     }}
   />
 );
+
+// ---------- oscillator sub-pane ----------
+
+/**
+ * An RSI pane, drawn the way a platform does it: its own box beneath price,
+ * sharing the price chart's x-scale, with 30/70 guides and a 0-100 axis.
+ * `slopes` takes RSI-space values so a divergence can be drawn against price.
+ */
+export const RsiPane: FC<{
+  values: (number | null)[];
+  count: number;
+  width: number;
+  height: number;
+  progress?: number;
+  label?: string;
+  slopes?: {from: number; to: number; fromValue: number; toValue: number; colour: string; reveal?: number}[];
+}> = ({values, count, width, height, progress = 1, label = 'RSI 9', slopes}) => {
+  const axisW = 142;
+  const plotW = width - axisW;
+  const plotH = height;
+  const y = (v: number) => plotH - (v / 100) * plotH;
+  const slot = plotW / count;
+  const shown = Math.round(count * progress);
+
+  const pts = values
+    .map((v, i) => (v === null || i >= shown ? null : `${slot * i + slot / 2},${y(v)}`))
+    .filter(Boolean) as string[];
+
+  return (
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`}>
+      {/* overbought / oversold guides */}
+      {[70, 30].map((lvl) => (
+        <g key={lvl}>
+          <line x1={0} y1={y(lvl)} x2={plotW} y2={y(lvl)} stroke={theme.textTertiary} strokeWidth={1} strokeDasharray="7 7" opacity={0.28} />
+          <text x={plotW + 16} y={y(lvl) + 6} fill={theme.textTertiary} opacity={0.4} fontFamily={theme.fontFamily} fontSize={17} letterSpacing="0.04em">
+            {lvl}
+          </text>
+        </g>
+      ))}
+      <line x1={0} y1={y(50)} x2={plotW} y2={y(50)} stroke={theme.textTertiary} strokeWidth={1} opacity={0.12} />
+      <line x1={plotW} y1={0} x2={plotW} y2={plotH} stroke={theme.textTertiary} strokeWidth={1} opacity={0.1} />
+
+      {pts.length > 1 && (
+        <polyline points={pts.join(' ')} fill="none" stroke={theme.orangeLight} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
+      )}
+
+      {slopes?.map((sl, k) => {
+        const r = sl.reveal ?? 1;
+        if (r <= 0) return null;
+        const x1 = slot * sl.from + slot / 2;
+        const x2 = slot * sl.to + slot / 2;
+        const y1 = y(sl.fromValue);
+        const y2 = y(sl.toValue);
+        return (
+          <line
+            key={k}
+            x1={x1}
+            y1={y1}
+            x2={x1 + (x2 - x1) * r}
+            y2={y1 + (y2 - y1) * r}
+            stroke={sl.colour}
+            strokeWidth={4}
+            strokeDasharray="10 7"
+            strokeLinecap="round"
+          />
+        );
+      })}
+
+      <rect x={4} y={6} width={label.length * 17 * 0.85 + 18} height={28} rx={5} fill={theme.bg} opacity={0.8} />
+      <text x={13} y={26} fill={theme.textTertiary} fontFamily={theme.fontFamily} fontSize={17} fontWeight={500} letterSpacing="0.16em">
+        {label}
+      </text>
+    </svg>
+  );
+};
