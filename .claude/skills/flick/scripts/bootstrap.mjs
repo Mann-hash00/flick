@@ -7,7 +7,10 @@ import {findPython, pythonInstallGuidance} from './python.mjs';
 
 const here = resolve(fileURLToPath(new URL('.', import.meta.url)));
 const args = process.argv.slice(2);
-const valueAfter = (flag) => args[args.indexOf(flag) + 1];
+const valueAfter = (flag) => {
+  const index = args.indexOf(flag);
+  return index === -1 ? undefined : args[index + 1];
+};
 const project = resolve(valueAfter('--project') || 'flick-output');
 const packageManager = valueAfter('--package-manager') || process.env.FLICK_PACKAGE_MANAGER || (process.platform === 'win32' ? 'npm.cmd' : 'npm');
 const run = (command, commandArgs, options = {}) => {

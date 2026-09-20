@@ -3,7 +3,10 @@ import {appendFile, cp, mkdir, stat} from 'node:fs/promises';
 import {basename, resolve} from 'node:path';
 
 const args = process.argv.slice(2);
-const valueAfter = (flag) => args[args.indexOf(flag) + 1];
+const valueAfter = (flag) => {
+  const index = args.indexOf(flag);
+  return index === -1 ? undefined : args[index + 1];
+};
 const library = valueAfter('--library');
 const name = valueAfter('--name');
 const component = valueAfter('--component');
