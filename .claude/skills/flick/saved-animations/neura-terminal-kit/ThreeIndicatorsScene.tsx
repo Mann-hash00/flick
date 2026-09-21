@@ -121,8 +121,8 @@ const EMA_STATS = seriesStats(EMA_SERIES);
 
 // ---------- shared type ----------
 
-const IndicatorHeading: FC<{index: string; name: string; sub: string}> = ({index, name, sub}) => (
-  <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 14, padding: '0 52px'}}>
+const IndicatorHeading: FC<{index: string; name: string; full: string; sub: string}> = ({index, name, full, sub}) => (
+  <div style={{display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, padding: '0 52px'}}>
     <Reveal from={0} duration={12}>
       <div style={{display: 'flex', alignItems: 'baseline', gap: 20}}>
         <span style={{color: theme.orange, fontFamily: theme.fontFamily, fontSize: 122, fontWeight: theme.weightDisplay, letterSpacing: '-0.05em', lineHeight: 0.9}}>
@@ -133,10 +133,26 @@ const IndicatorHeading: FC<{index: string; name: string; sub: string}> = ({index
         </span>
       </div>
     </Reveal>
-    <Reveal from={6} duration={14}>
+    {/* What the acronym actually stands for — read as recognition, not prose. */}
+    <Reveal from={5} duration={12}>
       <div
         style={{
-          color: theme.textTertiary,
+          color: theme.orange,
+          fontFamily: theme.fontFamily,
+          fontSize: 25,
+          fontWeight: theme.weightBody,
+          letterSpacing: theme.trackingWide,
+          textTransform: 'uppercase',
+        }}
+      >
+        {full}
+      </div>
+    </Reveal>
+    <Reveal from={11} duration={14}>
+      <div
+        style={{
+          marginTop: 4,
+          color: theme.textSecondary,
           fontFamily: theme.fontFamily,
           fontSize: 34,
           fontWeight: theme.weightBody,
@@ -150,6 +166,68 @@ const IndicatorHeading: FC<{index: string; name: string; sub: string}> = ({index
       </div>
     </Reveal>
   </div>
+);
+
+/** A small annotated chip that names what the chart is showing. */
+const ChartNote: FC<{from: number; colour?: string; children: React.ReactNode; style?: React.CSSProperties}> = ({
+  from,
+  colour = theme.orange,
+  children,
+  style,
+}) => {
+  const t = useReveal(from, 10);
+  if (t <= 0) return null;
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        opacity: t,
+        transform: `translateY(${(1 - t) * 10}px)`,
+        display: 'flex',
+        alignItems: 'center',
+        gap: 12,
+        background: `${theme.bg}D9`,
+        border: `1px solid ${colour}59`,
+        borderRadius: 10,
+        padding: '11px 18px',
+        ...style,
+      }}
+    >
+      <span style={{width: 8, height: 8, borderRadius: 4, background: colour, flexShrink: 0}} />
+      <span
+        style={{
+          color: theme.textPrimary,
+          fontFamily: theme.fontFamily,
+          fontSize: 25,
+          fontWeight: theme.weightBody,
+          letterSpacing: theme.trackingWide,
+          textTransform: 'uppercase',
+          whiteSpace: 'nowrap',
+        }}
+      >
+        {children}
+      </span>
+    </div>
+  );
+};
+
+/** Three-step progress marker, so a list video reads as a list. */
+const StepMarker: FC<{active: number}> = ({active}) => (
+  <AbsoluteFill style={{alignItems: 'center', justifyContent: 'flex-start', paddingTop: 116}}>
+    <div style={{display: 'flex', gap: 12}}>
+      {[1, 2, 3].map((n) => (
+        <div
+          key={n}
+          style={{
+            width: n === active ? 54 : 26,
+            height: 5,
+            borderRadius: 3,
+            background: n === active ? theme.orange : `${theme.textTertiary}2E`,
+          }}
+        />
+      ))}
+    </div>
+  </AbsoluteFill>
 );
 
 /** Heavily treated supplied photography, sitting behind the panels. */
@@ -235,24 +313,33 @@ const AtrSegment: FC = () => {
         <Audio src={sfx('Pop.mp3')} volume={0.85} />
       </Sequence>
 
-      <PhotoBackdrop src={DESK} opacity={0.14} blur={34} />
+      <PhotoBackdrop src={DESK} opacity={0.24} blur={30} />
       <Glow y="60%" strength={0.08} />
 
       <AbsoluteFill style={{alignItems: 'center', justifyContent: 'center', gap: 46}}>
-        <IndicatorHeading index="1" name="ATR" sub="Sets your stop-loss by volatility, not by feel." />
+        <IndicatorHeading index="1" name="ATR" full="Average True Range" sub="Sets your stop-loss by volatility, not by feel." />
         <Reveal from={3} duration={16} y={26}>
           <TerminalPanel symbol="NQ" timeframe="5M" price={ATR_STATS.last} change={ATR_STATS.change} changeNegative={ATR_STATS.negative} width={950}>
-            <CandleChart
-              candles={ATR_SERIES}
-              width={898}
-              height={470}
-              progress={print}
-              band={{upper: ATR_BAND.upper, lower: ATR_BAND.lower, reveal: bandIn}}
-              marker={snap > 0 ? {price: ATR_STOP, label: 'STOP', reveal: snap} : undefined}
-            />
+            <div style={{position: 'relative'}}>
+              <CandleChart
+                candles={ATR_SERIES}
+                width={898}
+                height={470}
+                progress={print}
+                band={{upper: ATR_BAND.upper, lower: ATR_BAND.lower, reveal: bandIn}}
+                marker={snap > 0 ? {price: ATR_STOP, label: 'STOP', reveal: snap} : undefined}
+              />
+              <ChartNote from={34} style={{top: -4, right: 150}}>
+                Wider band = more volatile
+              </ChartNote>
+              <ChartNote from={62} colour={theme.warnRed} style={{bottom: 52, right: 150}}>
+                Stop = 1.8 &times; ATR
+              </ChartNote>
+            </div>
           </TerminalPanel>
         </Reveal>
       </AbsoluteFill>
+      <StepMarker active={1} />
     </AbsoluteFill>
   );
 };
@@ -295,27 +382,36 @@ const RsiSegment: FC = () => {
         <Audio src={sfx('Zoomin-OR-out.mp3')} volume={0.7} />
       </Sequence>
 
-      <PhotoBackdrop src={DESK} opacity={0.14} blur={34} />
+      <PhotoBackdrop src={DESK} opacity={0.24} blur={30} />
       <Glow y="60%" strength={0.08} />
 
       <AbsoluteFill style={{alignItems: 'center', justifyContent: 'center', gap: 40}}>
-        <IndicatorHeading index="2" name="RSI divergence" sub="Shows exhaustion before price shows it." />
+        <IndicatorHeading index="2" name="RSI divergence" full="Relative Strength Index" sub="Shows exhaustion before price shows it." />
         <Reveal from={3} duration={16} y={26}>
           <TerminalPanel symbol="NQ" timeframe="5M" price={RSI_STATS.last} change={RSI_STATS.change} changeNegative={RSI_STATS.negative} width={950}>
-            <CandleChart
-              candles={RSI_SERIES}
-              width={898}
-              height={340}
-              progress={print}
-              showTimeAxis={false}
-              slopes={priceSlope}
-            />
-            <div style={{marginTop: 14, paddingTop: 14, borderTop: `1px solid ${theme.textTertiary}14`}}>
+            <div style={{position: 'relative'}}>
+              <CandleChart
+                candles={RSI_SERIES}
+                width={898}
+                height={340}
+                progress={print}
+                showTimeAxis={false}
+                slopes={priceSlope}
+              />
+              <ChartNote from={56} colour={theme.upGreen} style={{top: 4, left: 150}}>
+                Price: higher high
+              </ChartNote>
+            </div>
+            <div style={{marginTop: 14, paddingTop: 14, borderTop: `1px solid ${theme.textTertiary}14`, position: 'relative'}}>
               <RsiPane values={RSI_VALUES} count={RSI_SERIES.length} width={898} height={190} progress={print} label="RSI 9" slopes={rsiSlope} />
+              <ChartNote from={60} colour={theme.warnRed} style={{bottom: 8, left: 150}}>
+                RSI: lower high
+              </ChartNote>
             </div>
           </TerminalPanel>
         </Reveal>
       </AbsoluteFill>
+      <StepMarker active={2} />
     </AbsoluteFill>
   );
 };
@@ -338,47 +434,71 @@ const EmaSegment: FC = () => {
         <Audio src={sfx('Correct.mp3')} volume={0.72} />
       </Sequence>
 
-      <PhotoBackdrop src={DESK} opacity={0.14} blur={34} />
+      <PhotoBackdrop src={DESK} opacity={0.24} blur={30} />
       <Glow y="60%" strength={0.08} />
 
       <AbsoluteFill style={{alignItems: 'center', justifyContent: 'center', gap: 46}}>
-        <IndicatorHeading index="3" name="EMA 20/50" sub="Tells you the direction you should even be trading in." />
+        <IndicatorHeading index="3" name="EMA 20/50" full="Exponential Moving Average" sub="Tells you the direction you should even be trading in." />
         <Reveal from={3} duration={16} y={26}>
           <TerminalPanel symbol="NQ" timeframe="15M" price={EMA_STATS.last} change={EMA_STATS.change} changeNegative={EMA_STATS.negative} width={950}>
-            <CandleChart
-              candles={EMA_SERIES}
-              width={898}
-              height={470}
-              progress={print}
-              lines={[
-                {values: EMA50, colour: `${theme.textTertiary}66`, width: 3, dash: '9 7'},
-                {values: EMA20, colour: theme.orange, width: 4},
-              ]}
-              trend={{from: 4, to: EMA_SERIES.length - 2, reveal: arrow}}
-            />
+            {/* Notes need a positioned wrapper, or they anchor to the panel
+                and land on top of the header row. */}
+            <div style={{position: 'relative'}}>
+              <CandleChart
+                candles={EMA_SERIES}
+                width={898}
+                height={470}
+                progress={print}
+                lines={[
+                  {values: EMA50, colour: `${theme.textTertiary}66`, width: 3, dash: '9 7'},
+                  {values: EMA20, colour: theme.orange, width: 4},
+                ]}
+                trend={{from: 4, to: EMA_SERIES.length - 2, reveal: arrow}}
+              />
+              {/* A legend alone doesn't teach; say what the ordering means. */}
+              <ChartNote from={30} style={{top: 6, left: 130}}>
+                20 above 50 = uptrend
+              </ChartNote>
+              <ChartNote from={58} colour={theme.upGreen} style={{bottom: 56, left: 130}}>
+                Price holding above both
+              </ChartNote>
+            </div>
           </TerminalPanel>
         </Reveal>
       </AbsoluteFill>
 
-      {arrow > 0.5 && (
-        <AbsoluteFill style={{alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 150}}>
-          <div
-            style={{
-              opacity: interpolate(arrow, [0.5, 0.85], [0, 1], {extrapolateRight: 'clamp'}),
-              display: 'flex',
-              gap: 26,
-              fontFamily: theme.fontFamily,
-              fontSize: 26,
-              fontWeight: theme.weightBody,
-              letterSpacing: theme.trackingWide,
-              textTransform: 'uppercase',
-            }}
-          >
-            <span style={{color: theme.orange}}>EMA 20</span>
-            <span style={{color: theme.textTertiary}}>EMA 50</span>
-          </div>
-        </AbsoluteFill>
-      )}
+      {/* line key, so the two colours are identifiable */}
+      <AbsoluteFill style={{alignItems: 'center', justifyContent: 'flex-end', paddingBottom: 148}}>
+        <div style={{display: 'flex', gap: 30, alignItems: 'center'}}>
+          {[
+            {label: 'EMA 20', colour: theme.orange, dashed: false},
+            {label: 'EMA 50', colour: `${theme.textTertiary}99`, dashed: true},
+          ].map((l) => (
+            <div key={l.label} style={{display: 'flex', alignItems: 'center', gap: 10}}>
+              <span
+                style={{
+                  width: 30,
+                  height: 0,
+                  borderTop: `3px ${l.dashed ? 'dashed' : 'solid'} ${l.colour}`,
+                }}
+              />
+              <span
+                style={{
+                  color: l.colour,
+                  fontFamily: theme.fontFamily,
+                  fontSize: 24,
+                  fontWeight: theme.weightBody,
+                  letterSpacing: theme.trackingWide,
+                }}
+              >
+                {l.label}
+              </span>
+            </div>
+          ))}
+        </div>
+      </AbsoluteFill>
+
+      <StepMarker active={3} />
     </AbsoluteFill>
   );
 };

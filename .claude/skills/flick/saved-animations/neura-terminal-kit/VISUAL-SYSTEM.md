@@ -63,6 +63,28 @@ on every close, which produces a jagged shadow rather than an envelope.
   highlighted candle, labels, and one accent per composition.
 - Never more than one accent focus per frame.
 
+## Stated figures
+Any percentage, count or statistic that appears on screen lives in a named
+constant at the top of the scene with a comment saying where it came from and
+whether it was verified. This environment has no outbound web access, so a
+figure supplied in a brief cannot be checked here — say so when delivering,
+rather than letting a rendered number carry an authority nobody earned. Keeping
+it as a constant also means a sourced replacement is a one-line change.
+
+## Supplied screen recordings
+Frame the capture in a device rather than running it full-bleed, and size the
+frame so the footage scales **down**. A 720x1280 capture in a 1080x1920
+composition is a 3x upscale at full-bleed and looks it; at 660px wide it is a
+downscale and looks sharp.
+
+- Dark app UI on a dark ground needs a lift — `brightness(1.14) contrast(1.07)`
+  or it sinks into the panel on a phone.
+- Never pin a highlight overlay to a scrolling capture; it drifts. Sweep a soft
+  accent band across the region instead, or let the UI's own labels do the work.
+- **Check what the capture actually says.** The Control Room clip used here
+  showed limits being *loosened* while the copy claimed discipline holds. Playing
+  it reversed fixed the contradiction and gave a stronger closing frame.
+
 ## Supplied images
 Dropped into `brand-assets/images/`, used via `ImageBackdrop` — full-bleed,
 darkened, type over the top. Must be images Mann owns or has rights to.
