@@ -63,6 +63,28 @@ on every close, which produces a jagged shadow rather than an envelope.
   highlighted candle, labels, and one accent per composition.
 - Never more than one accent focus per frame.
 
+## Keeping a frame alive
+Type on flat black reads as dull however good the type is. Every scene should
+carry an ambient layer underneath the content, running the whole duration:
+
+- A drifting dot lattice (SVG `<pattern>` — 500 dots for the cost of one rect)
+  with a slow offset and a breathing opacity.
+- A few dozen motes at different speeds, a minority of them in the accent.
+- HUD corner brackets that draw in on a beat, and a short accent bloom on each
+  beat boundary so cuts don't land flat.
+
+Beyond that, a beat that is only a claim needs something to be true of: the
+evaluation beat gets a progress bar that fills and stamps PASSED, the blow-up
+beat gets an equity curve that climbs green through the eval, marks FUNDED at
+the top, and gives it all back in red. Build the visual the sentence describes
+rather than setting the sentence on an empty frame.
+
+## Emoji
+Headless Chromium here has no emoji font, so a literal emoji character renders
+as a tofu box. Draw the glyph as SVG instead — flat shapes in the video's own
+palette, animated in parts (eyes widening, jaw dropping, an impact burst) so it
+reads as designed rather than as clip art.
+
 ## Stated figures
 Any percentage, count or statistic that appears on screen lives in a named
 constant at the top of the scene with a comment saying where it came from and
