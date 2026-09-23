@@ -79,6 +79,24 @@ beat gets an equity curve that climbs green through the eval, marks FUNDED at
 the top, and gives it all back in red. Build the visual the sentence describes
 rather than setting the sentence on an empty frame.
 
+## One object, one take
+A beat sheet that lists a different metaphor per beat (piggy bank, then falling
+rock, then chart, then band-aid, then mountain) is five visual worlds in one
+short — it reads as a slideshow and the object-metaphors read as clip art.
+Prefer carrying a single object through the whole film and letting it take the
+punishment: in `ScarTissueScene.tsx` the equity curve bows under a weight and
+snaps, resets clean, gets whipped down with its earlier gain greying out behind
+the drop, gets sutured, and finally pulls back to reveal it has done this five
+times. The curve is native to the audience, so no beat has to explain itself.
+
+Zooming out at the end is the strongest move available for "this keeps
+happening" — but **scale x and y by different amounts**. A uniform pull-back to
+0.2 squashes each cycle to 42px tall and the scars vanish; 0.2 across and 0.62
+down is what a real chart does when you zoom out, and it stays legible. Use
+`vectorEffect="non-scaling-stroke"` so nothing thins out, and project anything
+that must stay circular (a head marker) into screen space outside the scaled
+group, or the non-uniform scale turns it into an ellipse.
+
 ## Emoji
 Headless Chromium here has no emoji font, so a literal emoji character renders
 as a tofu box. Draw the glyph as SVG instead — flat shapes in the video's own
